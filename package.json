@@ -15,7 +15,10 @@
     "prettier": "prettier --write **/*.{js,md,json}",
     "postversion": "npm run test && git push && git push --tags && npm publish && npm run deploy && npm run open-releases",
     "open-releases": "open \"$(node -e 'console.log(`${require(\"./package.json\").repository}/releases`)')\"",
-    "deploy": "now && now alias"
+    "deploy": "now && now alias",
+    "cli": "node /app/cli.js"
+  }, "config": {
+    "writeToCLI": "false"
   },
   "dependencies": {
     "compare-versions": "3.4.0",

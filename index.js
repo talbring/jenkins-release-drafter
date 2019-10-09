@@ -1,3 +1,5 @@
+const isCLIMode = true // process.env.npm_package_config_writeToCLI || false
+
 const getConfig = require('probot-config')
 const { isTriggerableBranch } = require('./lib/triggerable-branch')
 const { findReleases, generateReleaseInfo } = require('./lib/releases')
@@ -8,14 +10,23 @@ const {
   sortPullRequests,
   SORT_DIRECTIONS
 } = require('./lib/sort-pull-requests')
-const log = require('./lib/log')
+const log = isCLIMode ? require('./lib/log-cli') : require('./lib/log')
 
 const configName = 'release-drafter.yml'
 
-module.exports = app => {
-  app.on('push', async context => {
+if (isCLIMode) {
+  // CLI mode
+  _main(null, null)
+} else {
+  // Standard mode
+  module.exports = app => {
+    app.on('push', async context => { _main(app, context) } )
+  }
+}
+
+async function _main(app, context) {
     const defaults = {
-      branches: context.payload.repository.default_branch,
+      branches: isCLIMode ? null : context.payload.repository.default_branch,
       'change-template': `* $TITLE (#$NUMBER) @$AUTHOR`,
       'no-changes-template': `* No changes`,
       'version-template': `$MAJOR.$MINOR.$PATCH`,
@@ -35,14 +46,14 @@ module.exports = app => {
     })
     config['sort-direction'] = validateSortDirection(config['sort-direction'])
 
-    const branch = context.payload.ref.replace(/^refs\/heads\//, '')
+    const branch = isCLIMode ? null : context.payload.ref.replace(/^refs\/heads\//, '')
 
     if (!config.template) {
       log({ app, context, message: 'No valid config found' })
       return
     }
 
-    if (!isTriggerableBranch({ branch, app, context, config })) {
+    if (!isCLIMode && !isTriggerableBranch({ branch, app, context, config })) {
       return
     }
 
@@ -69,7 +80,11 @@ module.exports = app => {
       mergedPullRequests: sortedMergedPullRequests
     })
 
-    if (!draftRelease) {
+    if (isCLIMode) {
+      log({ app, context, message: 'Release name: ' + releaseInfo.name })
+      log({ app, context, message: 'Release tag: ' + releaseInfo.tag })
+      log({ app, context, message: releaseInfo.body }) 
+    } else if (!draftRelease) {
       log({ app, context, message: 'Creating new draft release' })
       await context.github.repos.createRelease(
         context.repo({
@@ -88,5 +103,4 @@ module.exports = app => {
         })
       )
     }
-  })
 }
