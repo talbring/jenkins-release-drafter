@@ -51,63 +51,83 @@ module.exports = app => {
     }
 
     const { draftRelease, lastRelease } = await findReleases({ app, context })
-    const {
-      commits,
-      pullRequests: mergedPullRequests
-    } = await findCommitsWithAssociatedPullRequests({
-      app,
-      context,
-      branch,
-      lastRelease
-    })
 
-    const sortedMergedPullRequests = sortPullRequests(
-      mergedPullRequests,
-      config['sort-direction']
-    )
+    var assetFound = false
+    if (draftRelease) {
+      console.log(JSON.stringify(draftRelease))
+      for (var dasset in draftRelease.assets) {
+        if (draftRelease.assets[dasset].name.includes(draftRelease.tag_name)) {
+          assetFound = true
+        }
+      }
+    }
+    if (!assetFound) {
+      const {
+        commits,
+        pullRequests: mergedPullRequests
+      } = await findCommitsWithAssociatedPullRequests({
+        app,
+        context,
+        branch,
+        lastRelease
+      })
 
-    const releaseInfo = generateReleaseInfo({
-      commits,
-      config,
-      lastRelease,
-      mergedPullRequests: sortedMergedPullRequests
-    })
+      const sortedMergedPullRequests = sortPullRequests(
+        mergedPullRequests,
+        config['sort-direction']
+      )
 
-    let currentRelease
-    if (!draftRelease) {
-      log({ app, context, message: 'Creating new draft release' })
-      currentRelease = await context.github.repos.createRelease(
-        context.repo({
-          name: releaseInfo.name,
-          tag_name: releaseInfo.tag,
-          body: releaseInfo.body,
-          draft: true
-        })
+      const releaseInfo = generateReleaseInfo({
+        commits,
+        config,
+        lastRelease,
+        mergedPullRequests: sortedMergedPullRequests
+      })
+
+      let currentRelease
+      if (!draftRelease) {
+        log({ app, context, message: 'Creating new draft release' })
+        currentRelease = await context.github.repos.createRelease(
+          context.repo({
+            name: releaseInfo.name,
+            tag_name: releaseInfo.tag,
+            body: releaseInfo.body,
+            draft: true
+          })
+        )
+      } else {
+        log({ app, context, message: 'Updating existing draft release' })
+        await context.github.repos.updateRelease(
+          context.repo({
+            release_id: draftRelease.id,
+            body: releaseInfo.body
+          })
+        )
+        currentRelease = await context.github.repos.getRelease(
+          context.repo({
+            release_id: draftRelease.id
+          })
+        )
+      }
+      for (var asset in currentRelease.data.assets) {
+        await context.github.repos.deleteReleaseAsset(
+          context.repo({
+            asset_id: currentRelease.data.assets[asset].id
+          })
+        )
+      }
+      console.log('::set-output name=tagname::' + currentRelease.data.tag_name)
+      console.log(
+        '::set-output name=uploadurl::' + currentRelease.data.upload_url
       )
     } else {
-      log({ app, context, message: 'Updating existing draft release' })
-      await context.github.repos.updateRelease(
-        context.repo({
-          release_id: draftRelease.id,
-          body: releaseInfo.body
-        })
-      )
-      currentRelease = await context.github.repos.getRelease(
-        context.repo({
-          release_id: draftRelease.id
-        })
-      )
+      log({
+        app,
+        context,
+        message: 'Matching assets found. Change log already up-to-date.'
+      })
+      console.log('::set-output name=tagname::' + draftRelease.tag_name)
+      console.log('::set-output name=uploadurl::' + draftRelease.upload_url)
     }
-    for (var asset in currentRelease.data.assets) {
-      await context.github.repos.deleteReleaseAsset(
-        context.repo({
-          asset_id: currentRelease.data.assets[asset].id
-        })
-      )
-    }
-    console.log('::set-output name=tagname::' + currentRelease.data.tag_name)
-    console.log(
-      '::set-output name=uploadurl::' + currentRelease.data.upload_url
-    )
   })
 }
