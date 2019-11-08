@@ -98,6 +98,13 @@ module.exports = app => {
         })
       )
     }
+    for (var asset in currentRelease.data.assets) {
+      await context.github.repos.deleteReleaseAsset(
+        context.repo({
+          asset_id: currentRelease.data.assets[asset].id
+        })
+      )
+    }
     console.log('::set-output name=tagname::' + currentRelease.data.tag_name)
     console.log(
       '::set-output name=uploadurl::' + currentRelease.data.upload_url
