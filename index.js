@@ -98,6 +98,7 @@ module.exports = app => {
         })
       )
     }
+    console.log('::set-output name=tagname::' + currentRelease.data.tag_name)
     console.log(
       '::set-output name=uploadurl::' + currentRelease.data.upload_url
     )
