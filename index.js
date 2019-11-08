@@ -73,9 +73,10 @@ module.exports = app => {
       mergedPullRequests: sortedMergedPullRequests
     })
 
+    let currentRelease
     if (!draftRelease) {
       log({ app, context, message: 'Creating new draft release' })
-      await context.github.repos.createRelease(
+      currentRelease = await context.github.repos.createRelease(
         context.repo({
           name: releaseInfo.name,
           tag_name: releaseInfo.tag,
@@ -91,6 +92,14 @@ module.exports = app => {
           body: releaseInfo.body
         })
       )
+      currentRelease = await context.github.repos.getRelease(
+        context.repo({
+          release_id: draftRelease.id
+        })
+      )
     }
+    console.log(
+      '::set-output name=uploadurl::' + currentRelease.data.upload_url
+    )
   })
 }
