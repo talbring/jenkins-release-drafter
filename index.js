@@ -38,9 +38,8 @@ module.exports = app => {
     // GitHub Actions merge payloads slightly differ, in that their ref points
     // to the PR branch instead of refs/heads/master
     const ref = process.env['GITHUB_REF'] || context.payload.ref
-
+    const sha = 'untagged-' + context.payload.after.substring(0, 7)
     const branch = ref.replace(/^refs\/heads\//, '')
-
     if (!config.template) {
       log({ app, context, message: 'No valid config found' })
       return
@@ -54,11 +53,8 @@ module.exports = app => {
 
     var assetFound = false
     if (draftRelease) {
-      console.log(JSON.stringify(draftRelease))
-      for (var dasset in draftRelease.assets) {
-        if (draftRelease.assets[dasset].name.includes(draftRelease.tag_name)) {
-          assetFound = true
-        }
+      if (draftRelease.tag_name == sha) {
+        assetFound = true
       }
     }
     if (!assetFound) {
@@ -90,7 +86,7 @@ module.exports = app => {
         currentRelease = await context.github.repos.createRelease(
           context.repo({
             name: releaseInfo.name,
-            tag_name: releaseInfo.tag,
+            tag_name: sha,
             body: releaseInfo.body,
             draft: true
           })
@@ -100,6 +96,7 @@ module.exports = app => {
         await context.github.repos.updateRelease(
           context.repo({
             release_id: draftRelease.id,
+            tag_name: sha,
             body: releaseInfo.body
           })
         )
