@@ -58,6 +58,32 @@ module.exports = app => {
       }
     }
     if (!assetFound) {
+      let currentRelease
+
+      // Update the tag name of the current draft release or create a new one if no draft can be found
+      if (!draftRelease) {
+        log({ app, context, message: 'Creating new draft release' })
+        currentRelease = await context.github.repos.createRelease(
+          context.repo({
+            tag_name: sha,
+            draft: true
+          })
+        )
+      } else {
+        log({ app, context, message: 'Updating existing draft release' })
+        await context.github.repos.updateRelease(
+          context.repo({
+            release_id: draftRelease.id,
+            tag_name: sha
+          })
+        )
+        currentRelease = await context.github.repos.getRelease(
+          context.repo({
+            release_id: draftRelease.id
+          })
+        )
+      }
+
       const {
         commits,
         pullRequests: mergedPullRequests
@@ -80,32 +106,14 @@ module.exports = app => {
         mergedPullRequests: sortedMergedPullRequests
       })
 
-      let currentRelease
-      if (!draftRelease) {
-        log({ app, context, message: 'Creating new draft release' })
-        currentRelease = await context.github.repos.createRelease(
-          context.repo({
-            name: releaseInfo.name,
-            tag_name: sha,
-            body: releaseInfo.body,
-            draft: true
-          })
-        )
-      } else {
-        log({ app, context, message: 'Updating existing draft release' })
-        await context.github.repos.updateRelease(
-          context.repo({
-            release_id: draftRelease.id,
-            tag_name: sha,
-            body: releaseInfo.body
-          })
-        )
-        currentRelease = await context.github.repos.getRelease(
-          context.repo({
-            release_id: draftRelease.id
-          })
-        )
-      }
+      log({ app, context, message: 'Updating draft release body' })
+      await context.github.repos.updateRelease(
+        context.repo({
+          release_id: currentRelease.data.id,
+          body: releaseInfo.body
+        })
+      )
+
       for (var asset in currentRelease.data.assets) {
         await context.github.repos.deleteReleaseAsset(
           context.repo({
